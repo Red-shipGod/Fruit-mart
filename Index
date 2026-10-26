@@ -1,50 +1,97 @@
-// Vercel serverless function: receives the form and posts it to your Discord channel.
-// Set DISCORD_WEBHOOK_URL in your Vercel project's Environment Variables.
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sell Your Item</title>
+<style>
+  :root { --bg:#f6f7fb; --card:#fff; --text:#1c1e26; --muted:#6b7280; --brand:#4f46e5; --border:#e5e7eb; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#0f1117; --card:#181b24; --text:#f3f4f6; --muted:#9ca3af; --border:#2a2e3a; }
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--text); }
+  .wrap { max-width:520px; margin:0 auto; padding:24px 16px 48px; }
+  h1 { font-size:26px; margin:8px 0 4px; }
+  p.sub { color:var(--muted); margin:0 0 20px; }
+  form { background:var(--card); border:1px solid var(--border); border-radius:16px; padding:20px; }
+  label { display:block; font-size:14px; font-weight:600; margin:14px 0 6px; }
+  input, select, textarea { width:100%; padding:12px; font-size:16px; border:1px solid var(--border); border-radius:10px; background:transparent; color:var(--text); font-family:inherit; }
+  textarea { min-height:100px; resize:vertical; }
+  button { width:100%; margin-top:20px; padding:14px; font-size:16px; font-weight:600; border:0; border-radius:10px; background:var(--brand); color:#fff; cursor:pointer; }
+  button:disabled { opacity:.6; }
+  .hp { position:absolute; left:-9999px; }
+  #msg { margin-top:14px; padding:12px; border-radius:10px; display:none; font-size:15px; }
+  #msg.ok { display:block; background:#dcfce7; color:#166534; }
+  #msg.err { display:block; background:#fee2e2; color:#991b1b; }
+  small { color:var(--muted); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Sell Your Item</h1>
+  <p class="sub">Fill in the details below. We'll review your request and contact you soon.</p>
 
-const hits = new Map(); // simple per-IP rate limit (resets on cold start)
+  <form id="f">
+    <label for="name">Your name *</label>
+    <input id="name" name="name" required maxlength="80">
 
-const clip = (v, n) => String(v ?? '').trim().slice(0, n);
+    <label for="contact">Phone / WhatsApp / Email *</label>
+    <input id="contact" name="contact" required maxlength="120" placeholder="How can we reach you?">
 
-export default async function handler(req, res) {
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+    <label for="item">Item name *</label>
+    <input id="item" name="item" required maxlength="120">
 
-  const ip = (req.headers['x-forwarded-for'] || '').split(',')[0] || 'unknown';
-  const now = Date.now();
-  const recent = (hits.get(ip) || []).filter(t => now - t < 10 * 60 * 1000);
-  if (recent.length >= 5) return res.status(429).json({ error: 'Too many requests' });
-  hits.set(ip, [...recent, now]);
+    <label for="category">Category</label>
+    <select id="category" name="category">
+      <option>Electronics</option><option>Furniture</option><option>Clothing</option>
+      <option>Vehicles</option><option>Books</option><option>Other</option>
+    </select>
 
-  const b = req.body || {};
-  if (b.website) return res.status(200).json({ ok: true }); // honeypot: bots fill this
+    <label for="condition">Condition</label>
+    <select id="condition" name="condition">
+      <option>New</option><option>Like new</option><option selected>Good</option><option>Fair</option><option>For parts</option>
+    </select>
 
-  const name = clip(b.name, 80), contact = clip(b.contact, 120), item = clip(b.item, 120);
-  const price = clip(b.price, 12);
-  if (!name || !contact || !item || !price) return res.status(400).json({ error: 'Missing fields' });
+    <label for="price">Expected price (₹) *</label>
+    <input id="price" name="price" type="number" min="0" required inputmode="numeric">
 
-  const image = /^https?:\/\//i.test(b.image || '') ? clip(b.image, 300) : '';
+    <label for="location">City / Location</label>
+    <input id="location" name="location" maxlength="100">
 
-  const embed = {
-    title: `New sell request: ${item}`,
-    color: 0x4f46e5,
-    fields: [
-      { name: 'Name', value: name, inline: true },
-      { name: 'Contact', value: contact, inline: true },
-      { name: 'Price', value: `₹${price}`, inline: true },
-      { name: 'Category', value: clip(b.category, 40) || '-', inline: true },
-      { name: 'Condition', value: clip(b.condition, 40) || '-', inline: true },
-      { name: 'Location', value: clip(b.location, 100) || '-', inline: true },
-      { name: 'Description', value: clip(b.desc, 800) || '-' },
-    ],
-    timestamp: new Date().toISOString(),
-  };
-  if (image) embed.image = { url: image };
+    <label for="desc">Description</label>
+    <textarea id="desc" name="desc" maxlength="800" placeholder="Age, brand, defects, etc."></textarea>
 
-  const r = await fetch(process.env.DISCORD_WEBHOOK_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ embeds: [embed], allowed_mentions: { parse: [] } }),
-  });
+    <label for="image">Photo link (optional)</label>
+    <input id="image" name="image" type="url" maxlength="300" placeholder="https://...">
+    <small>Upload to Google Drive/Imgur and paste the public link.</small>
 
-  if (!r.ok) return res.status(502).json({ error: 'Discord error' });
-  res.status(200).json({ ok: true });
-}
+    <input class="hp" name="website" tabindex="-1" autocomplete="off">
+
+    <button id="btn" type="submit">Send request</button>
+    <div id="msg"></div>
+  </form>
+</div>
+
+<script>
+const f = document.getElementById('f'), msg = document.getElementById('msg'), btn = document.getElementById('btn');
+f.addEventListener('submit', async e => {
+  e.preventDefault();
+  btn.disabled = true; msg.className = ''; msg.textContent = '';
+  try {
+    const res = await fetch('/api/submit', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(Object.fromEntries(new FormData(f)))
+    });
+    if (!res.ok) throw new Error();
+    msg.className = 'ok'; msg.textContent = 'Thanks! Your request was sent. We will contact you soon.';
+    f.reset();
+  } catch {
+    msg.className = 'err'; msg.textContent = 'Something went wrong. Please try again.';
+  }
+  btn.disabled = false;
+});
+</script>
+</body>
+</html>
